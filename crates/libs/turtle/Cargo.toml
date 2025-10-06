@@ -1,0 +1,15 @@
+[package]
+name = "turtle"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+ash.workspace = true
+ash-window.workspace = true
+glam = "0.30.8"
+gpu-allocator = "0.28.0"
+log.workspace = true
+winit.workspace = true
+
+[build-dependencies]
+glsl-to-spirv = "0.1.7"
