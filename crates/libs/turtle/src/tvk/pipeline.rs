@@ -131,7 +131,7 @@ impl Pipeline {
 }
 
 impl tvk::Context {
-    pub fn create_pipelines(
+    pub fn create_pipeline(
         &self,
         swapchain: &tvk::Swapchain,
         render_pass: &tvk::RenderPass,

@@ -38,11 +38,12 @@ impl ApplicationHandler for TurtleApp {
         ) {
         match event {
             WindowEvent::CloseRequested => {
-                self.renderer.as_ref().unwrap().context.logical_device.device_wait_idle().unwrap();
                 event_loop.exit();
             },
             WindowEvent::RedrawRequested => {
-                self.renderer.as_mut().unwrap().render().unwrap();
+                if self.renderer.as_mut().unwrap().render().unwrap() {
+                    self.renderer.as_mut().unwrap().recreate_swapchain(self.window.as_ref().unwrap()).unwrap();
+                }
                 self.window.as_ref().unwrap().request_redraw();
             },
             _ => ()

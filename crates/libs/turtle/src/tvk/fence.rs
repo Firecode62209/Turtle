@@ -24,6 +24,13 @@ impl Fence {
         })
     }
 
+    pub fn null(logical_device: Arc<tvk::LogicalDevice>) -> Self {
+        Self {
+            inner: avk::Fence::null(),
+            logical_device
+        }
+    }
+
     pub fn wait(&self, timeout: u64) -> AnyResult<()> {
         unsafe {
             self.logical_device.inner.wait_for_fences(&[self.inner], true, timeout)?;

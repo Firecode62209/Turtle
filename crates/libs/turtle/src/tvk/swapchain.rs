@@ -60,8 +60,7 @@ pub struct Swapchain {
 impl Swapchain {
     pub fn new(
         context: &tvk::Context,
-        surface: &tvk::Surface,    
-        window: &Window
+        window: &Window,
     ) -> AnyResult<Self> {
         let format = get_swapchain_surface_format(&context.physical_device.formats);
         let present_mode = get_swapchain_present_mode(&context.physical_device.present_modes);
@@ -78,7 +77,7 @@ impl Swapchain {
         };
 
         let create_info = avk::SwapchainCreateInfoKHR::default()
-            .surface(surface.surface_khr)
+            .surface(context.surface.surface_khr)
             .min_image_count(2) // Double buffering
             .image_format(format.format)
             .image_color_space(format.color_space)
@@ -115,6 +114,59 @@ impl Swapchain {
         })
     }
 
+    pub fn recreate(
+        &mut self,
+        context: &tvk::Context,
+        window: &Window
+    ) -> AnyResult<()> {
+        self.cleanup();
+        self.extent = get_swapchain_extent(window, context.physical_device.surface_capabilities);
+
+        let mut queue_family_indices = Vec::new();
+        let sharing_mode = if context.queue_families.get(&tvk::QueueType::Graphics).unwrap().index != context.queue_families.get(&tvk::QueueType::Present).unwrap().index {
+            queue_family_indices.push(context.queue_families.get(&tvk::QueueType::Graphics).unwrap().index);
+            queue_family_indices.push(context.queue_families.get(&tvk::QueueType::Present).unwrap().index);
+            avk::SharingMode::CONCURRENT
+        } else {
+            avk::SharingMode::EXCLUSIVE
+        };
+
+        let create_info = avk::SwapchainCreateInfoKHR::default()
+            .surface(context.surface.surface_khr)
+            .min_image_count(2) // Double buffering
+            .image_format(self.format)
+            .image_color_space(self.color_space)
+            .image_extent(self.extent) // Placeholder dimensions
+            .image_array_layers(1)
+            .image_usage(avk::ImageUsageFlags::COLOR_ATTACHMENT)
+            .image_sharing_mode(sharing_mode)
+            .queue_family_indices(&queue_family_indices)
+            .pre_transform(context.physical_device.surface_capabilities.current_transform)
+            .composite_alpha(avk::CompositeAlphaFlagsKHR::OPAQUE)
+            .present_mode(self.present_mode)
+            .clipped(true);
+
+        self.swapchain_khr = unsafe { self.inner.create_swapchain(&create_info, None)? };        
+        self.images = unsafe { self.inner.get_swapchain_images(self.swapchain_khr)? };
+        self.image_views = self.images.iter().map(|&image| {
+            tvk::ImageView::new(
+                image,
+                self.format,
+                context.logical_device.clone(),
+            )
+        }).collect::<AnyResult<Vec<_>>>()?;
+
+        Ok(())
+    }
+
+    pub fn cleanup(&mut self) {
+        unsafe {
+            self.image_views.clear();
+            self.images.clear();
+            self.inner.destroy_swapchain(self.swapchain_khr, None);
+        }
+    }
+
     pub fn acquire_next_image(&self, timeout: u64, semaphore: avk::Semaphore, fence: avk::Fence) -> AnyResult<(u32, bool)> {
         let (image_index, is_suboptimal) = unsafe {
             self.inner.acquire_next_image(
@@ -144,8 +196,8 @@ impl Swapchain {
 }
 
 impl tvk::Context {
-    pub fn create_swapchain(&self, surface: &tvk::Surface, window: &Window) -> AnyResult<tvk::Swapchain> {
-        tvk::Swapchain::new(self, surface, window)
+    pub fn create_swapchain(&self, window: &Window) -> AnyResult<tvk::Swapchain> {
+        tvk::Swapchain::new(self, window)
     }
 }
 
