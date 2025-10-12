@@ -1,6 +1,4 @@
 use std::{path::PathBuf, sync::Arc};
-
-use gpu_allocator::MemoryLocation;
 use winit::window::Window;
 
 use ash::vk as avk;
@@ -14,8 +12,8 @@ pub struct Renderer {
     pub render_pass: tvk::RenderPass,
     pub command_buffers: Vec<tvk::CommandBuffer>,
     pub sync_objects: tvk::SyncObjects,
-    pub vertex_buffer: tvk::Buffer,
     pub swapchain: tvk::Swapchain,
+    pub meshes: Vec<tvk::Mesh<tvk::Vertex>>,
     pub context: tvk::Context,
 
     pub frame_index: usize,
@@ -56,12 +54,6 @@ impl Renderer {
         
         let sync_objects = context.create_sync_objects(swapchain.images.len(), MAX_FRAMES_IN_FLIGHT)?;
         let command_buffers = context.allocate_command_buffers(avk::CommandBufferLevel::PRIMARY, tvk::QueueType::Graphics, MAX_FRAMES_IN_FLIGHT as u32)?;
-        let mut vertex_buffer = context.create_buffer(
-            avk::BufferUsageFlags::VERTEX_BUFFER,
-            MemoryLocation::CpuToGpu,
-            size_of_val(&tvk::VERTICES) as u64
-        )?;
-        vertex_buffer.copy_memory(&tvk::VERTICES)?;
 
         Ok(Self {
             frame_index: 0,
@@ -72,10 +64,52 @@ impl Renderer {
             pipeline,
             sync_objects,
             command_buffers,
-            vertex_buffer,
             vertex_source,
             fragment_source,
+            meshes: Vec::new()
         })
+    }
+
+    pub fn recreate_swapchain(&mut self, window: &Window) -> AnyResult<()> {
+        self.context.logical_device.device_wait_idle()?;
+        self.frame_buffers.clear();
+        self.swapchain.recreate(&self.context, window)?;
+        self.frame_buffers = self.context.create_frame_buffers(&self.swapchain, &self.render_pass)?;
+        Ok(())
+    }
+    
+    pub fn record_command_buffer(
+        &self,
+        command_buffer: &tvk::CommandBuffer,
+        image_index: usize
+    ) -> AnyResult<()> {
+        command_buffer.begin(avk::CommandBufferUsageFlags::default())?;
+        let clear_values = [avk::ClearValue {
+            color: avk::ClearColorValue { float32: [0.0, 0.0, 0.08, 1.0] },
+        }]; 
+        command_buffer.begin_render_pass(
+            &self.swapchain, 
+            &self.render_pass, 
+            &self.frame_buffers[image_index], 
+            avk::SubpassContents::INLINE,
+            &clear_values
+        );
+        command_buffer.bind_pipeline(&self.pipeline);
+        for mesh in self.meshes.iter() {
+            command_buffer.bind_vertex_buffer(&mesh.vertex_buffer);
+            command_buffer.bind_index_buffer(&mesh.index_buffer);
+            command_buffer.draw_indexed(mesh.indices.len() as u32, 1, 0, 0, 0);
+        }
+        command_buffer.end_render_pass();
+        command_buffer.end()?;
+        Ok(())
+    }
+
+    pub fn reset_command_buffers(&self) -> AnyResult<()> {
+        for command_buffer in self.command_buffers.iter() {
+            command_buffer.reset(avk::CommandBufferResetFlags::empty())?;
+        }
+        Ok(())
     }
 
     pub fn render(&mut self) -> AnyResult<bool> {
@@ -119,45 +153,10 @@ impl Renderer {
        
         Ok(is_suboptimal)
     }
-
-    pub fn recreate_swapchain(&mut self, window: &Window) -> AnyResult<()> {
-        self.context.logical_device.device_wait_idle()?;
-        self.frame_buffers.clear();
-        self.swapchain.recreate(&self.context, window)?;
-        self.frame_buffers = self.context.create_frame_buffers(&self.swapchain, &self.render_pass)?;
-        Ok(())
-    }
-
-    pub fn record_command_buffer(
-        &self,
-        command_buffer: &tvk::CommandBuffer,
-        image_index: usize
-    ) -> AnyResult<()> {
-        command_buffer.begin(avk::CommandBufferUsageFlags::default())?;
-        let clear_values = [avk::ClearValue {
-            color: avk::ClearColorValue { float32: [0.0, 0.0, 0.08, 1.0] },
-        }]; 
-        command_buffer.begin_render_pass(
-            &self.swapchain, 
-            &self.render_pass, 
-            &self.frame_buffers[image_index], 
-            avk::SubpassContents::INLINE,
-            &clear_values
-        );
-        command_buffer.bind_pipeline(&self.pipeline);
-        command_buffer.bind_vertex_buffer(&self.vertex_buffer);
-        command_buffer.draw(3, 1, 0, 0);
-        command_buffer.end_render_pass();
-        command_buffer.end()?;
-        Ok(())
-    }
-}
+} 
 
 impl Drop for Renderer {
     fn drop(&mut self) {
         self.context.logical_device.device_wait_idle().unwrap();
-        for command_buffer in &self.command_buffers {
-            command_buffer.reset(avk::CommandBufferResetFlags::empty()).unwrap();
-        }
     }
 }

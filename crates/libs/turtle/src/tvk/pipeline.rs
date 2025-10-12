@@ -1,6 +1,6 @@
 use std::{path::Path, sync::Arc};
 use ash::vk as avk;
-use crate::{tvk, AnyResult};
+use crate::{tvk::{self, VertexDescription}, AnyResult};
 pub struct Pipeline {
     pub viewport: avk::Viewport,
     pub scissor: avk::Rect2D,

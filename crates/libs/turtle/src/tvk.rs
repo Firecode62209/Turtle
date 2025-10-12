@@ -63,3 +63,6 @@ pub use vertex::*;
 
 pub mod buffer;
 pub use buffer::*;
+
+pub mod mesh;
+pub use mesh::*;

@@ -4,30 +4,43 @@ pub type AnyResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 #[derive(Default)]
 pub struct TurtleApp {
-    pub window: Option<Window>,
-    pub renderer: Option<tvk::Renderer>,
-    
+    pub app_data: Option<AppData>
+}
+
+pub struct AppData {
+    pub renderer: tvk::Renderer,
+    pub window: Window,
+}
+
+impl AppData {
+    pub fn new(event_loop: &winit::event_loop::ActiveEventLoop) -> AnyResult<Self> {
+        let window = event_loop.create_window(Window::default_attributes())?;
+        let mut renderer = tvk::Renderer::new(&window)?;
+        let meshes = vec![renderer.context.create_mesh_from_vertices(tvk::CUBE_VERTICES.into(), tvk::CUBE_INDICES.into())?];
+        renderer.meshes = meshes;
+
+        Ok(Self {
+            window,
+            renderer,        
+        })
+    }
 }
 
 impl TurtleApp {
-    pub fn new () -> Self {
+    pub fn new() -> Self {
         Self {
-            renderer: None,
-            window: None
+            app_data: None
         }
     }
 }
 
 impl ApplicationHandler for TurtleApp {
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-        if self.window.is_none() {
-            let window = event_loop.create_window(Window::default_attributes()).unwrap();
-        
-            self.renderer = Some(tvk::Renderer::new(&window).unwrap());
-            self.window = Some(window);
-
-            self.window.as_ref().unwrap().request_redraw();
+        if self.app_data.is_none() {
+            self.app_data = Some(AppData::new(event_loop).unwrap());
         }
+
+        self.app_data.as_ref().unwrap().window.request_redraw();
     }
 
     fn window_event(
@@ -38,13 +51,17 @@ impl ApplicationHandler for TurtleApp {
         ) {
         match event {
             WindowEvent::CloseRequested => {
+                if let Some(app_data) = &self.app_data {
+                    app_data.renderer.context.logical_device.device_wait_idle().unwrap();
+                    app_data.renderer.reset_command_buffers().unwrap();
+                }
                 event_loop.exit();
             },
             WindowEvent::RedrawRequested => {
-                if self.renderer.as_mut().unwrap().render().unwrap() {
-                    self.renderer.as_mut().unwrap().recreate_swapchain(self.window.as_ref().unwrap()).unwrap();
+                if let Some(app_data) = &mut self.app_data {
+                    app_data.renderer.render().unwrap();
+                    app_data.window.request_redraw();
                 }
-                self.window.as_ref().unwrap().request_redraw();
             },
             _ => ()
         }

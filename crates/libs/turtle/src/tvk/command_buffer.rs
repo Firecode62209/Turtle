@@ -59,6 +59,17 @@ impl CommandBuffer {
         }
     }
 
+    pub fn bind_index_buffer(&self, buffer: &tvk::Buffer) {
+        unsafe {
+            self.logical_device.inner.cmd_bind_index_buffer(
+                self.inner,
+                buffer.inner,
+                0,
+                avk::IndexType::UINT32
+            );
+        }
+    }
+
     pub fn bind_pipeline(&self, pipeline: &tvk::Pipeline) {
         unsafe {
             self.logical_device.inner.cmd_bind_pipeline(
@@ -105,6 +116,19 @@ impl CommandBuffer {
                 first_vertex,
                 first_instance
             );
+        }
+    }
+
+    pub fn draw_indexed(&self, index_count: u32, instance_count: u32, first_index: u32, vertex_offset: i32, first_instance: u32) {
+        unsafe {
+            self.logical_device.inner.cmd_draw_indexed(
+                self.inner,
+                index_count,
+                instance_count,
+                first_index,
+                vertex_offset,
+                first_instance
+            )
         }
     }
 
