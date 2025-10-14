@@ -2,8 +2,6 @@ use std::{path::Path, sync::Arc};
 use ash::vk as avk;
 use crate::{tvk::{self, VertexDescription}, AnyResult};
 pub struct Pipeline {
-    pub viewport: avk::Viewport,
-    pub scissor: avk::Rect2D,
     pub inner: avk::Pipeline,
     pub layout: avk::PipelineLayout,
     logical_device: Arc<tvk::LogicalDevice>,
@@ -21,9 +19,12 @@ impl Pipeline {
         logical_device: Arc<tvk::LogicalDevice>,
         swapchain: &tvk::Swapchain,
         render_pass: &tvk::RenderPass,
+        descriptor_layout: avk::DescriptorSetLayout,
         shaders: &[tvk::PipelineShaderCreateInfo],
     ) -> AnyResult<Self> {
-        let layout_info = avk::PipelineLayoutCreateInfo::default();
+        let set_layouts = [descriptor_layout];
+        let layout_info = avk::PipelineLayoutCreateInfo::default()
+            .set_layouts(&set_layouts);
         let layout = unsafe { logical_device.inner.create_pipeline_layout(&layout_info, None)? };
 
         let (_modules, stages) = shaders.into_iter()
@@ -55,23 +56,9 @@ impl Pipeline {
             .topology(avk::PrimitiveTopology::TRIANGLE_LIST)
             .primitive_restart_enable(false);
 
-        let viewport = avk::Viewport::default()
-            .x(0.0)
-            .y(0.0)
-            .width(swapchain.extent.width as f32)
-            .height(swapchain.extent.height as f32)
-            .min_depth(0.0)
-            .max_depth(1.0);
-
-        let scissor = avk::Rect2D::default()
-            .offset(avk::Offset2D { x: 0, y: 0 })
-            .extent(swapchain.extent);
-
-        let viewports = &[viewport];
-        let scissors = &[scissor];
         let viewport_state = avk::PipelineViewportStateCreateInfo::default()
-            .viewports(viewports)
-            .scissors(scissors);
+            .viewport_count(1)
+            .scissor_count(1);
 
         let rasterization_state = avk::PipelineRasterizationStateCreateInfo::default()
             .depth_clamp_enable(false)
@@ -124,8 +111,6 @@ impl Pipeline {
             inner,
             layout,
             logical_device,
-            viewport,
-            scissor
         })
     }
 }
@@ -135,9 +120,10 @@ impl tvk::Context {
         &self,
         swapchain: &tvk::Swapchain,
         render_pass: &tvk::RenderPass,
+        descriptor_set: avk::DescriptorSetLayout,
         shaders: &[tvk::PipelineShaderCreateInfo]
     ) -> AnyResult<tvk::Pipeline> {
-        tvk::Pipeline::new(self.logical_device.clone(), swapchain, render_pass, shaders)
+        tvk::Pipeline::new(self.logical_device.clone(), swapchain, render_pass, descriptor_set, shaders)
     }
 }
 

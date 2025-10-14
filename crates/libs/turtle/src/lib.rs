@@ -10,6 +10,7 @@ pub struct TurtleApp {
 pub struct AppData {
     pub renderer: tvk::Renderer,
     pub window: Window,
+    pub time: std::time::Instant
 }
 
 impl AppData {
@@ -21,7 +22,8 @@ impl AppData {
 
         Ok(Self {
             window,
-            renderer,        
+            renderer,
+            time: std::time::Instant::now()        
         })
     }
 }
@@ -59,7 +61,9 @@ impl ApplicationHandler for TurtleApp {
             },
             WindowEvent::RedrawRequested => {
                 if let Some(app_data) = &mut self.app_data {
-                    app_data.renderer.render().unwrap();
+                    if app_data.renderer.render(app_data.time).unwrap() {
+                        app_data.renderer.recreate_swapchain(&app_data.window).unwrap();
+                    }
                     app_data.window.request_redraw();
                 }
             },

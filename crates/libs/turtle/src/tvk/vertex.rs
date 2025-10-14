@@ -1,5 +1,5 @@
 use ash::vk as avk;
-use glam::vec3;
+use glam::{vec3, Mat4};
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -59,6 +59,13 @@ pub const CUBE_INDICES: [u32; 36] = [
     // Bottom
     20,21,22, 22,23,20,
 ];
+
+#[derive(Clone, Copy)]
+pub struct UniformBufferObject {
+    pub model: Mat4,
+    pub view: Mat4,
+    pub proj: Mat4
+}
 
 impl VertexDescription for Vertex {
     fn get_binding_descriptions() -> Vec<avk::VertexInputBindingDescription> {

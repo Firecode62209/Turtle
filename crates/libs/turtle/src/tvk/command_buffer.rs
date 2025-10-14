@@ -59,6 +59,20 @@ impl CommandBuffer {
         }
     }
 
+    pub fn bind_descriptor_sets(&self, layout: avk::PipelineLayout, set: avk::DescriptorSet) {
+        unsafe {
+            let sets = [set];
+            self.logical_device.inner.cmd_bind_descriptor_sets(
+                self.inner,
+                avk::PipelineBindPoint::GRAPHICS,
+                layout,
+                0,
+                &sets,
+                &[]
+            );
+        }
+    }
+
     pub fn bind_index_buffer(&self, buffer: &tvk::Buffer) {
         unsafe {
             self.logical_device.inner.cmd_bind_index_buffer(
@@ -77,8 +91,20 @@ impl CommandBuffer {
                 avk::PipelineBindPoint::GRAPHICS,
                 pipeline.inner
             );
-            self.logical_device.inner.cmd_set_viewport(self.inner, 0, &[pipeline.viewport]);
-            self.logical_device.inner.cmd_set_scissor(self.inner, 0, &[pipeline.scissor]);
+        }
+    }
+
+    pub fn set_scissor(&self, scissor: avk::Rect2D) {
+        let scissors = [scissor];
+        unsafe {
+            self.logical_device.inner.cmd_set_scissor(self.inner, 0, &scissors);
+        }
+    }
+
+    pub fn set_viewport(&self, viewport: avk::Viewport) {
+        let viewports = [viewport];
+        unsafe {
+            self.logical_device.inner.cmd_set_viewport(self.inner, 0, &viewports);
         }
     }
 

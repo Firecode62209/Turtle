@@ -66,3 +66,6 @@ pub use buffer::*;
 
 pub mod mesh;
 pub use mesh::*;
+
+pub mod descriptor;
+pub use descriptor::*;

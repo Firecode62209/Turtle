@@ -9,16 +9,15 @@ const MAX_FRAMES_IN_FLIGHT: usize = 2;
 pub struct Renderer {
     pub frame_buffers: Vec<tvk::FrameBuffer>,
     pub pipeline: tvk::Pipeline,
+    pub descriptor: tvk::Descriptor,
     pub render_pass: tvk::RenderPass,
     pub command_buffers: Vec<tvk::CommandBuffer>,
     pub sync_objects: tvk::SyncObjects,
     pub swapchain: tvk::Swapchain,
+    pub uniform_buffers: Vec<tvk::Buffer>,
     pub meshes: Vec<tvk::Mesh<tvk::Vertex>>,
     pub context: tvk::Context,
-
     pub frame_index: usize,
-    pub vertex_source: PathBuf,
-    pub fragment_source: PathBuf,
 }
 
 impl Renderer {
@@ -36,10 +35,12 @@ impl Renderer {
         .unwrap();
         let vertex_source = workspace_root.join("assets/generated/shaders/shader.vert.spv");
         let fragment_source = workspace_root.join("assets/generated/shaders/shader.frag.spv");
-
+        let mut descriptor = context.create_descriptor_dependecies(MAX_FRAMES_IN_FLIGHT as u32)?;
+        descriptor.allocate_sets()?;
         let pipeline = context.create_pipeline(
             &swapchain,
-            &render_pass, 
+            &render_pass,
+            descriptor.layout, 
             &vec![
                 tvk::PipelineShaderCreateInfo {
                     stage: avk::ShaderStageFlags::VERTEX,
@@ -54,6 +55,14 @@ impl Renderer {
         
         let sync_objects = context.create_sync_objects(swapchain.images.len(), MAX_FRAMES_IN_FLIGHT)?;
         let command_buffers = context.allocate_command_buffers(avk::CommandBufferLevel::PRIMARY, tvk::QueueType::Graphics, MAX_FRAMES_IN_FLIGHT as u32)?;
+        let uniform_buffers = (0..MAX_FRAMES_IN_FLIGHT).into_iter().map(|_| {
+            context.create_buffer(
+                avk::BufferUsageFlags::UNIFORM_BUFFER,
+                gpu_allocator::MemoryLocation::CpuToGpu,
+                size_of::<tvk::UniformBufferObject>() as u64
+            )
+        }).collect::<AnyResult<Vec<_>>>()?;
+        descriptor.update(&uniform_buffers)?;
 
         Ok(Self {
             frame_index: 0,
@@ -64,9 +73,9 @@ impl Renderer {
             pipeline,
             sync_objects,
             command_buffers,
-            vertex_source,
-            fragment_source,
-            meshes: Vec::new()
+            meshes: Vec::new(),
+            descriptor,
+            uniform_buffers,
         })
     }
 
@@ -95,6 +104,9 @@ impl Renderer {
             &clear_values
         );
         command_buffer.bind_pipeline(&self.pipeline);
+        command_buffer.set_scissor(self.swapchain.get_scissor());
+        command_buffer.set_viewport(self.swapchain.get_viewport());
+        command_buffer.bind_descriptor_sets(self.pipeline.layout, self.descriptor.sets[self.frame_index]);
         for mesh in self.meshes.iter() {
             command_buffer.bind_vertex_buffer(&mesh.vertex_buffer);
             command_buffer.bind_index_buffer(&mesh.index_buffer);
@@ -112,46 +124,58 @@ impl Renderer {
         Ok(())
     }
 
-    pub fn render(&mut self) -> AnyResult<bool> {
-        let in_flight_fence = &self.sync_objects.in_flight_fences[self.frame_index];
-        let image_available_semaphore = &[self.sync_objects.image_available_semaphores[self.frame_index].inner];
-        let command_buffer = &[self.command_buffers[self.frame_index].inner];
-        let render_finished_semaphore = &[self.sync_objects.render_finished_semaphores[self.frame_index].inner];
-        
-        self.context.logical_device.wait_for_fences(&[in_flight_fence.inner], true, u64::MAX)?;
+    pub fn render(&mut self, time: std::time::Instant) -> AnyResult<bool> {
+
+        self.sync_objects.in_flight_fences[self.frame_index].wait(u64::MAX)?;
         let (image_index, _) = self.swapchain.acquire_next_image(
                 u64::MAX,
-                image_available_semaphore[0],
+                self.sync_objects.image_available_semaphores[self.frame_index].inner,
                 avk::Fence::null()
         )?;
-        
+
         if let Some(weak_images_in_flight) = &self.sync_objects.images_in_flight[image_index as usize] {
             if let Some(arc_images_in_flight) = weak_images_in_flight.upgrade() {
                 arc_images_in_flight.wait(u64::MAX)?;
             }
         }
-        self.sync_objects.images_in_flight[image_index as usize] = Some(Arc::downgrade(in_flight_fence));
+        self.sync_objects.images_in_flight[image_index as usize] = Some(Arc::downgrade(
+            &self.sync_objects.in_flight_fences[self.frame_index]
+        ));
 
+        self.update_uniform_buffer(time, image_index as usize)?;
         self.command_buffers[self.frame_index].reset(avk::CommandBufferResetFlags::empty())?;
         self.record_command_buffer(&self.command_buffers[self.frame_index], image_index as usize)?;
         
-        in_flight_fence.reset()?;
+        self.sync_objects.in_flight_fences[self.frame_index].reset()?;
 
+        let image_available_semaphores = [self.sync_objects.image_available_semaphores[self.frame_index].inner];
+        let render_finished_semaphores = [self.sync_objects.render_finished_semaphores[self.frame_index].inner];
+        let command_buffers = [self.command_buffers[self.frame_index].inner];
         let submit_info = avk::SubmitInfo::default()
-            .wait_semaphores(image_available_semaphore)
+            .wait_semaphores(&image_available_semaphores)
             .wait_dst_stage_mask(&[avk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT])
-            .command_buffers(command_buffer)
-            .signal_semaphores(render_finished_semaphore);
-        self.context.queues.get(&tvk::QueueType::Graphics).unwrap().submit(&[submit_info], in_flight_fence.inner)?;
+            .command_buffers(&command_buffers)
+            .signal_semaphores(&render_finished_semaphores);
+        self.context.queues.get(&tvk::QueueType::Graphics).unwrap().submit(&[submit_info], self.sync_objects.in_flight_fences[self.frame_index].inner)?;
         
         let is_suboptimal = self.swapchain.queue_present(
             self.context.queues.get(&tvk::QueueType::Graphics).unwrap(),
             image_index,
-            render_finished_semaphore
+            &render_finished_semaphores
         )?;
         self.frame_index = (self.frame_index + 1) % MAX_FRAMES_IN_FLIGHT;
        
         Ok(is_suboptimal)
+    }
+
+    pub fn update_uniform_buffer(&mut self, time: std::time::Instant, index: usize) -> AnyResult<()>{
+        let ubos = [tvk::UniformBufferObject {
+            model: glam::Mat4::from_rotation_y(time.elapsed().as_secs_f32() * f32::to_radians(90.0)),
+            view: glam::Mat4::look_at_rh(glam::vec3(2.0, -2.0, 2.0), glam::Vec3::ZERO, glam::Vec3::Y),
+            proj: glam::Mat4::perspective_rh(f32::to_radians(45.0), self.swapchain.extent.width as f32 / self.swapchain.extent.height as f32, 0.1, 100.0)
+        }];
+        self.uniform_buffers[index].copy_memory(&ubos)?;
+        Ok(())
     }
 } 
 

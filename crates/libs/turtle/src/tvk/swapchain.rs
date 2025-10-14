@@ -31,19 +31,15 @@ fn get_swapchain_extent(
     window: &Window,
     capabilities: avk::SurfaceCapabilitiesKHR
 ) -> avk::Extent2D {
-    if capabilities.current_extent.width != u32::MAX {
-        capabilities.current_extent
-    } else {
-        avk::Extent2D::default()
-            .width(window.inner_size().width.clamp(
-                capabilities.min_image_extent.width,
-                capabilities.max_image_extent.width
-            ))
-            .height(window.inner_size().height.clamp(
-                capabilities.min_image_extent.height,
-                capabilities.max_image_extent.height
-            ))
-    }
+    avk::Extent2D::default()
+        .width(window.inner_size().width.clamp(
+            capabilities.min_image_extent.width,
+            capabilities.max_image_extent.width
+        ))
+        .height(window.inner_size().height.clamp(
+            capabilities.min_image_extent.height,
+            capabilities.max_image_extent.height
+        ))
 }
 
 pub struct Swapchain {
@@ -121,7 +117,7 @@ impl Swapchain {
     ) -> AnyResult<()> {
         self.cleanup();
         self.extent = get_swapchain_extent(window, context.physical_device.surface_capabilities);
-
+        
         let mut queue_family_indices = Vec::new();
         let sharing_mode = if context.queue_families.get(&tvk::QueueType::Graphics).unwrap().index != context.queue_families.get(&tvk::QueueType::Present).unwrap().index {
             queue_family_indices.push(context.queue_families.get(&tvk::QueueType::Graphics).unwrap().index);
@@ -133,10 +129,10 @@ impl Swapchain {
 
         let create_info = avk::SwapchainCreateInfoKHR::default()
             .surface(context.surface.surface_khr)
-            .min_image_count(2) // Double buffering
+            .min_image_count(2)
             .image_format(self.format)
             .image_color_space(self.color_space)
-            .image_extent(self.extent) // Placeholder dimensions
+            .image_extent(self.extent) 
             .image_array_layers(1)
             .image_usage(avk::ImageUsageFlags::COLOR_ATTACHMENT)
             .image_sharing_mode(sharing_mode)
@@ -192,6 +188,22 @@ impl Swapchain {
         };
 
         Ok(result)
+    }
+
+    pub fn get_scissor(&self) -> avk::Rect2D {
+        avk::Rect2D::default()
+            .offset(avk::Offset2D { x: 0, y: 0 })
+            .extent(self.extent)
+    }
+
+    pub fn get_viewport(&self) -> avk::Viewport {
+        avk::Viewport::default()
+            .x(0.0)
+            .y(0.0)
+            .width(self.extent.width as f32)
+            .height(self.extent.height as f32)
+            .min_depth(0.0)
+            .max_depth(1.0)
     }
 }
 
