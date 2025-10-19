@@ -2,7 +2,7 @@ use std::{path::PathBuf, sync::Arc};
 use winit::window::Window;
 
 use ash::vk as avk;
-use crate::{tvk, AnyResult};
+use crate::{tvk, AnyResult, Camera};
 
 const MAX_FRAMES_IN_FLIGHT: usize = 2;
 
@@ -124,7 +124,7 @@ impl Renderer {
         Ok(())
     }
 
-    pub fn render(&mut self, time: std::time::Instant) -> AnyResult<bool> {
+    pub fn render(&mut self, time: std::time::Instant, camera: &Camera) -> AnyResult<bool> {
 
         self.sync_objects.in_flight_fences[self.frame_index].wait(u64::MAX)?;
         let (image_index, _) = self.swapchain.acquire_next_image(
@@ -142,7 +142,7 @@ impl Renderer {
             &self.sync_objects.in_flight_fences[self.frame_index]
         ));
 
-        self.update_uniform_buffer(time, image_index as usize)?;
+        self.update_uniform_buffer(time, camera, image_index as usize)?;
         self.command_buffers[self.frame_index].reset(avk::CommandBufferResetFlags::empty())?;
         self.record_command_buffer(&self.command_buffers[self.frame_index], image_index as usize)?;
         
@@ -168,11 +168,11 @@ impl Renderer {
         Ok(is_suboptimal)
     }
 
-    pub fn update_uniform_buffer(&mut self, time: std::time::Instant, index: usize) -> AnyResult<()>{
+    pub fn update_uniform_buffer(&mut self, time: std::time::Instant, camera: &Camera, index: usize) -> AnyResult<()>{
         let ubos = [tvk::UniformBufferObject {
             model: glam::Mat4::from_rotation_y(time.elapsed().as_secs_f32() * f32::to_radians(90.0)),
-            view: glam::Mat4::look_at_rh(glam::vec3(2.0, -2.0, 2.0), glam::Vec3::ZERO, glam::Vec3::Y),
-            proj: glam::Mat4::perspective_rh(f32::to_radians(45.0), self.swapchain.extent.width as f32 / self.swapchain.extent.height as f32, 0.1, 100.0)
+            view: camera.view_matrix(),
+            proj: camera.projection
         }];
         self.uniform_buffers[index].copy_memory(&ubos)?;
         Ok(())

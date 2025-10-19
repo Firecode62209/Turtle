@@ -1,5 +1,10 @@
 pub mod tvk;
-use winit::{application::ApplicationHandler, event::WindowEvent, window::Window};
+pub mod input_manager;
+pub use input_manager::*;
+pub mod camera;
+pub use camera::*;
+
+use winit::{application::ApplicationHandler, event::WindowEvent, keyboard::KeyCode, window::{CursorGrabMode, Window}};
 pub type AnyResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 #[derive(Default)]
@@ -10,7 +15,9 @@ pub struct TurtleApp {
 pub struct AppData {
     pub renderer: tvk::Renderer,
     pub window: Window,
-    pub time: std::time::Instant
+    pub time: std::time::Instant,
+    pub camera: Camera,
+    pub input_manager: InputManager,
 }
 
 impl AppData {
@@ -20,10 +27,15 @@ impl AppData {
         let meshes = vec![renderer.context.create_mesh_from_vertices(tvk::CUBE_VERTICES.into(), tvk::CUBE_INDICES.into())?];
         renderer.meshes = meshes;
 
+        window.set_cursor_visible(false);
+        window.set_cursor_grab(CursorGrabMode::Locked).unwrap();
+
         Ok(Self {
             window,
             renderer,
-            time: std::time::Instant::now()        
+            time: std::time::Instant::now(),
+            input_manager: InputManager::default(),
+            camera: Camera::default(),
         })
     }
 }
@@ -51,6 +63,9 @@ impl ApplicationHandler for TurtleApp {
             _window_id: winit::window::WindowId,
             event: winit::event::WindowEvent,
         ) {
+        if let Some(app_data) = &mut self.app_data {
+            app_data.input_manager.handle_window_event(&event);
+        }
         match event {
             WindowEvent::CloseRequested => {
                 if let Some(app_data) = &self.app_data {
@@ -61,13 +76,37 @@ impl ApplicationHandler for TurtleApp {
             },
             WindowEvent::RedrawRequested => {
                 if let Some(app_data) = &mut self.app_data {
-                    if app_data.renderer.render(app_data.time).unwrap() {
+                    if app_data.renderer.render(app_data.time, &app_data.camera).unwrap() {
                         app_data.renderer.recreate_swapchain(&app_data.window).unwrap();
                     }
                     app_data.window.request_redraw();
                 }
             },
             _ => ()
+        }
+    }
+    
+    fn device_event(
+            &mut self,
+            _event_loop: &winit::event_loop::ActiveEventLoop,
+            _device_id: winit::event::DeviceId,
+            event: winit::event::DeviceEvent,
+        ) {
+        if let Some(app_data) = &mut self.app_data {
+            app_data.input_manager.handle_device_event(&event);
+        }
+    }
+
+    fn about_to_wait(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
+        if let Some(app_data) = &mut self.app_data {
+            app_data.camera.update(&app_data.renderer.swapchain, &app_data.input_manager);
+            
+            if app_data.input_manager.keyboard().just_pressed(KeyCode::Escape) {
+                app_data.window.set_cursor_visible(true);
+                app_data.window.set_cursor_grab(CursorGrabMode::None).unwrap();
+            }
+            
+            app_data.input_manager.update();
         }
     }
 }
