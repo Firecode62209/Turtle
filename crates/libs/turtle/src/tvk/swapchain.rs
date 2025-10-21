@@ -92,9 +92,10 @@ impl Swapchain {
         let images = unsafe { inner.get_swapchain_images(swapchain_khr)? };
         let image_views = images.iter().map(|&image| {
             tvk::ImageView::new(
+                context.logical_device.clone(),
                 image,
                 format.format,
-                context.logical_device.clone(),
+                avk::ImageAspectFlags::COLOR
             )
         }).collect::<AnyResult<Vec<_>>>()?;
 
@@ -146,9 +147,10 @@ impl Swapchain {
         self.images = unsafe { self.inner.get_swapchain_images(self.swapchain_khr)? };
         self.image_views = self.images.iter().map(|&image| {
             tvk::ImageView::new(
+                context.logical_device.clone(),
                 image,
                 self.format,
-                context.logical_device.clone(),
+                avk::ImageAspectFlags::COLOR
             )
         }).collect::<AnyResult<Vec<_>>>()?;
 

@@ -63,3 +63,9 @@ pub use buffer::*;
 
 pub mod descriptor;
 pub use descriptor::*;
+
+pub mod depth_buffer;
+pub use depth_buffer::*;
+
+pub mod image;
+pub use image::*;

@@ -10,9 +10,10 @@ pub struct ImageView {
 
 impl ImageView {
     pub fn new(
+        logical_device: Arc<tvk::LogicalDevice>,
         image: avk::Image,
         format: avk::Format,
-        logical_device: Arc<tvk::LogicalDevice>
+        aspect_flags: avk::ImageAspectFlags
     ) -> AnyResult<Self> {
         let create_info = avk::ImageViewCreateInfo::default()
             .image(image)
@@ -25,7 +26,7 @@ impl ImageView {
                 a: avk::ComponentSwizzle::IDENTITY,
             })
             .subresource_range(avk::ImageSubresourceRange {
-                aspect_mask: avk::ImageAspectFlags::COLOR,
+                aspect_mask: aspect_flags,
                 base_mip_level: 0,
                 level_count: 1,
                 base_array_layer: 0,
@@ -38,6 +39,12 @@ impl ImageView {
             inner,
             logical_device
         })
+    }
+}
+
+impl tvk::Context {
+    pub fn create_image_view(&self, image: &tvk::Image, format: avk::Format, aspect_flags: avk::ImageAspectFlags) -> AnyResult<ImageView> {
+        ImageView::new(self.logical_device.clone(), image.inner, format, aspect_flags)
     }
 }
 

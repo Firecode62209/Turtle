@@ -7,3 +7,4 @@ edition = "2024"
 turtle = { path = "../../libs/turtle" }
 winit.workspace = true
 pretty_env_logger.workspace = true
+glam.workspace = true

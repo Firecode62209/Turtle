@@ -4,13 +4,13 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-ash.workspace = true
-ash-window.workspace = true
+ash = "0.38.0"
+ash-window = "0.13.0"
 bytemuck = "1.24.0"
 glam = "0.30.8"
 gpu-allocator = "0.28.0"
-log.workspace = true
-winit.workspace = true
+log = "0.4.28"
+winit = {version = "0.30.12", features = ["rwh_05"]}
 
 [build-dependencies]
 glsl-to-spirv = "0.1.7"

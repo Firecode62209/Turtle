@@ -13,8 +13,9 @@ impl FrameBuffer {
         swapchain: &tvk::Swapchain,
         render_pass: &tvk::RenderPass,
         image_view: &tvk::ImageView,
+        depth_image_view: &tvk::ImageView,
         ) -> AnyResult<Self> {
-        let attachments = &[image_view.inner];
+        let attachments = &[image_view.inner, depth_image_view.inner];
         let create_info = avk::FramebufferCreateInfo::default()
             .render_pass(render_pass.inner)
             .attachments(attachments)
@@ -32,9 +33,9 @@ impl FrameBuffer {
 }
 
 impl tvk::Context {
-    pub fn create_frame_buffers(&self, swapchain:&tvk::Swapchain, render_pass: &tvk::RenderPass) -> AnyResult<Vec<FrameBuffer>> {
+    pub fn create_frame_buffers(&self, swapchain:&tvk::Swapchain, render_pass: &tvk::RenderPass, depth_image_view: &tvk::ImageView) -> AnyResult<Vec<FrameBuffer>> {
         swapchain.image_views.iter().map(|image_view| {
-            tvk::FrameBuffer::new(self.logical_device.clone(), swapchain, render_pass, image_view)
+            tvk::FrameBuffer::new(self.logical_device.clone(), swapchain, render_pass, image_view, depth_image_view)
         }).collect()
     }
 }

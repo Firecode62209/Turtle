@@ -19,6 +19,7 @@ pub struct Renderer {
     pub render_pass: tvk::RenderPass,
     pub command_buffers: Vec<tvk::CommandBuffer>,
     pub sync_objects: tvk::SyncObjects,
+    pub depth_buffer: tvk::DepthBuffer,
     pub swapchain: tvk::Swapchain,
     pub uniform_buffers: Vec<tvk::Buffer>,
     pub context: tvk::Context,
@@ -29,8 +30,9 @@ impl Renderer {
     pub fn new(window: &Window) -> AnyResult<Self> {
         let context: tvk::Context = tvk::Context::new(window)?;
         let swapchain = context.create_swapchain(window)?;
+        let depth_buffer = context.create_depth_buffer(&swapchain)?;
         let render_pass = context.create_render_pass(&swapchain)?;
-        let frame_buffers = context.create_frame_buffers(&swapchain, &render_pass)?;
+        let frame_buffers = context.create_frame_buffers(&swapchain, &render_pass, &depth_buffer.image_view)?;
         
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let workspace_root = manifest_dir
@@ -79,6 +81,7 @@ impl Renderer {
             command_buffers,
             descriptor,
             uniform_buffers,
+            depth_buffer
         })
     }
 
@@ -86,7 +89,7 @@ impl Renderer {
         self.context.logical_device.device_wait_idle()?;
         self.frame_buffers.clear();
         self.swapchain.recreate(&self.context, window)?;
-        self.frame_buffers = self.context.create_frame_buffers(&self.swapchain, &self.render_pass)?;
+        self.frame_buffers = self.context.create_frame_buffers(&self.swapchain, &self.render_pass, &self.depth_buffer.image_view)?;
         Ok(())
     }
     
@@ -99,6 +102,9 @@ impl Renderer {
         command_buffer.begin(avk::CommandBufferUsageFlags::default())?;
         let clear_values = [avk::ClearValue {
             color: avk::ClearColorValue { float32: [0.0, 0.0, 0.08, 1.0] },
+        },
+        avk::ClearValue {
+            depth_stencil: avk::ClearDepthStencilValue { depth: 1.0, stencil: 0}
         }]; 
         command_buffer.begin_render_pass(
             &self.swapchain, 

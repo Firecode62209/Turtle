@@ -87,6 +87,13 @@ impl Pipeline {
             .attachments(attachments)
             .blend_constants([0.0, 0.0, 0.0, 0.0]);
 
+        let depth_stencil = avk::PipelineDepthStencilStateCreateInfo::default()
+            .depth_test_enable(true)
+            .depth_write_enable(true)
+            .depth_compare_op(avk::CompareOp::LESS)
+            .depth_bounds_test_enable(false)
+            .stencil_test_enable(false);
+
         let create_info = avk::GraphicsPipelineCreateInfo::default()
             .stages(&stages)
             .vertex_input_state(&vertex_input_state)
@@ -98,7 +105,8 @@ impl Pipeline {
             .layout(layout)
             .subpass(0)
             .render_pass(render_pass.inner)
-            .dynamic_state(&dynamic_state);
+            .dynamic_state(&dynamic_state)
+            .depth_stencil_state(&depth_stencil);
 
         let inner = unsafe { logical_device.inner.create_graphics_pipelines(avk::PipelineCache::null(), &[create_info], None)
             .map_err(|e| e.1)?[0]
