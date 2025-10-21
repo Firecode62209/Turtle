@@ -2,7 +2,13 @@ use std::{path::PathBuf, sync::Arc};
 use winit::window::Window;
 
 use ash::vk as avk;
-use crate::{tvk, AnyResult, Camera};
+use crate::*;
+
+pub mod mesh;
+pub use mesh::*;
+
+pub mod instance_group;
+pub use instance_group::*;
 
 const MAX_FRAMES_IN_FLIGHT: usize = 2;
 
@@ -15,7 +21,6 @@ pub struct Renderer {
     pub sync_objects: tvk::SyncObjects,
     pub swapchain: tvk::Swapchain,
     pub uniform_buffers: Vec<tvk::Buffer>,
-    pub meshes: Vec<tvk::Mesh<tvk::Vertex>>,
     pub context: tvk::Context,
     pub frame_index: usize,
 }
@@ -38,7 +43,6 @@ impl Renderer {
         let mut descriptor = context.create_descriptor_dependecies(MAX_FRAMES_IN_FLIGHT as u32)?;
         descriptor.allocate_sets()?;
         let pipeline = context.create_pipeline(
-            &swapchain,
             &render_pass,
             descriptor.layout, 
             &vec![
@@ -59,7 +63,7 @@ impl Renderer {
             context.create_buffer(
                 avk::BufferUsageFlags::UNIFORM_BUFFER,
                 gpu_allocator::MemoryLocation::CpuToGpu,
-                size_of::<tvk::UniformBufferObject>() as u64
+                size_of::<camera::Matrix>() as u64
             )
         }).collect::<AnyResult<Vec<_>>>()?;
         descriptor.update(&uniform_buffers)?;
@@ -73,7 +77,6 @@ impl Renderer {
             pipeline,
             sync_objects,
             command_buffers,
-            meshes: Vec::new(),
             descriptor,
             uniform_buffers,
         })
@@ -90,6 +93,7 @@ impl Renderer {
     pub fn record_command_buffer(
         &self,
         command_buffer: &tvk::CommandBuffer,
+        instance_groups: &[InstanceGroup],
         image_index: usize
     ) -> AnyResult<()> {
         command_buffer.begin(avk::CommandBufferUsageFlags::default())?;
@@ -107,10 +111,11 @@ impl Renderer {
         command_buffer.set_scissor(self.swapchain.get_scissor());
         command_buffer.set_viewport(self.swapchain.get_viewport());
         command_buffer.bind_descriptor_sets(self.pipeline.layout, self.descriptor.sets[self.frame_index]);
-        for mesh in self.meshes.iter() {
-            command_buffer.bind_vertex_buffer(&mesh.vertex_buffer);
-            command_buffer.bind_index_buffer(&mesh.index_buffer);
-            command_buffer.draw_indexed(mesh.indices.len() as u32, 1, 0, 0, 0);
+        for instance_group in instance_groups.iter() {
+            let buffers = [instance_group.mesh.vertex_buffer.inner, instance_group.instance_buffer.as_ref().unwrap().inner];
+            command_buffer.bind_vertex_buffers(&buffers);
+            command_buffer.bind_index_buffer(&instance_group.mesh.index_buffer);
+            command_buffer.draw_indexed(instance_group.mesh.indices.len() as u32, instance_group.visible_count as u32, 0, 0, 0);
         }
         command_buffer.end_render_pass();
         command_buffer.end()?;
@@ -124,7 +129,7 @@ impl Renderer {
         Ok(())
     }
 
-    pub fn render(&mut self, time: std::time::Instant, camera: &Camera) -> AnyResult<bool> {
+    pub fn render(&mut self, camera: &Camera, instance_groups: &[InstanceGroup]) -> AnyResult<bool> {
 
         self.sync_objects.in_flight_fences[self.frame_index].wait(u64::MAX)?;
         let (image_index, _) = self.swapchain.acquire_next_image(
@@ -142,9 +147,9 @@ impl Renderer {
             &self.sync_objects.in_flight_fences[self.frame_index]
         ));
 
-        self.update_uniform_buffer(time, camera, image_index as usize)?;
+        self.update_uniform_buffer(camera, image_index as usize)?;
         self.command_buffers[self.frame_index].reset(avk::CommandBufferResetFlags::empty())?;
-        self.record_command_buffer(&self.command_buffers[self.frame_index], image_index as usize)?;
+        self.record_command_buffer(&self.command_buffers[self.frame_index], instance_groups, image_index as usize)?;
         
         self.sync_objects.in_flight_fences[self.frame_index].reset()?;
 
@@ -168,9 +173,8 @@ impl Renderer {
         Ok(is_suboptimal)
     }
 
-    pub fn update_uniform_buffer(&mut self, time: std::time::Instant, camera: &Camera, index: usize) -> AnyResult<()>{
-        let ubos = [tvk::UniformBufferObject {
-            model: glam::Mat4::from_rotation_y(time.elapsed().as_secs_f32() * f32::to_radians(90.0)),
+    pub fn update_uniform_buffer(&mut self, camera: &Camera, index: usize) -> AnyResult<()>{
+        let ubos = [camera::Matrix {
             view: camera.view_matrix(),
             proj: camera.projection
         }];

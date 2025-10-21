@@ -1,4 +1,7 @@
 pub mod tvk;
+pub mod renderer;
+use glam::{vec3, Mat4};
+pub use renderer::*;
 pub mod input_manager;
 pub use input_manager::*;
 pub mod camera;
@@ -13,7 +16,8 @@ pub struct TurtleApp {
 }
 
 pub struct AppData {
-    pub renderer: tvk::Renderer,
+    pub instance_groups: Vec<InstanceGroup>,
+    pub renderer: Renderer,
     pub window: Window,
     pub time: std::time::Instant,
     pub camera: Camera,
@@ -23,9 +27,48 @@ pub struct AppData {
 impl AppData {
     pub fn new(event_loop: &winit::event_loop::ActiveEventLoop) -> AnyResult<Self> {
         let window = event_loop.create_window(Window::default_attributes())?;
-        let mut renderer = tvk::Renderer::new(&window)?;
-        let meshes = vec![renderer.context.create_mesh_from_vertices(tvk::CUBE_VERTICES.into(), tvk::CUBE_INDICES.into())?];
-        renderer.meshes = meshes;
+        let renderer = Renderer::new(&window)?;
+        let mesh = renderer.context.create_mesh_from_cube()?;
+        let mut instance_group = InstanceGroup::from(mesh);
+        instance_group.create_instance_buffer(&renderer.context)?;
+        let count = 500;        // how many cubes you want
+        let radius = 10.0;      // radius of sphere
+        let spacing = 1.2;      // optional multiplier for cube separation
+
+        for i in 0..count {
+            // Compute a normalized position on the sphere
+            let phi = std::f32::consts::PI * (3.0 - 5.0_f32.sqrt()); // golden angle
+            let y = 1.0 - (i as f32 / (count - 1) as f32) * 2.0;     // y from 1 to -1
+            let r = (1.0 - y * y).sqrt();                            // radius at that y
+            let theta = phi * i as f32;
+
+            let x = theta.cos() * r;
+            let z = theta.sin() * r;
+
+            // Position on the sphere scaled by radius
+            let position = glam::vec3(x, y, z) * radius * spacing;
+
+            let forward = position.normalize();
+            let up = glam::Vec3::Y;
+            let right = up.cross(forward).normalize();
+            let adjusted_up = forward.cross(right);
+
+            let rotation = Mat4::from_cols(
+                right.extend(0.0),
+                adjusted_up.extend(0.0),
+                forward.extend(0.0),
+                glam::Vec4::W,
+            );
+
+            let transform = Mat4::from_translation(position) * rotation;
+
+            instance_group.add_instance(
+                transform,
+                true,
+            );
+        }
+        log::warn!("total instances: {}", instance_group.visible_count);
+        instance_group.update_gpu_buffer()?;
 
         window.set_cursor_visible(false);
         window.set_cursor_grab(CursorGrabMode::Locked).unwrap();
@@ -36,6 +79,7 @@ impl AppData {
             time: std::time::Instant::now(),
             input_manager: InputManager::default(),
             camera: Camera::default(),
+            instance_groups: vec![instance_group]
         })
     }
 }
@@ -76,7 +120,7 @@ impl ApplicationHandler for TurtleApp {
             },
             WindowEvent::RedrawRequested => {
                 if let Some(app_data) = &mut self.app_data {
-                    if app_data.renderer.render(app_data.time, &app_data.camera).unwrap() {
+                    if app_data.renderer.render(&app_data.camera, &app_data.instance_groups).unwrap() {
                         app_data.renderer.recreate_swapchain(&app_data.window).unwrap();
                     }
                     app_data.window.request_redraw();

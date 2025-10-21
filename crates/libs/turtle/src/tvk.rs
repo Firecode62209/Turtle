@@ -22,9 +22,6 @@ pub use context::*;
 pub mod surface;
 pub use surface::*;
 
-pub mod renderer;
-pub use renderer::*;
-
 pub mod swapchain;
 pub use swapchain::*;
 
@@ -63,9 +60,6 @@ pub use vertex::*;
 
 pub mod buffer;
 pub use buffer::*;
-
-pub mod mesh;
-pub use mesh::*;
 
 pub mod descriptor;
 pub use descriptor::*;

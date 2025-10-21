@@ -17,7 +17,6 @@ pub struct PipelineShaderCreateInfo<'a> {
 impl Pipeline {
     pub fn new(
         logical_device: Arc<tvk::LogicalDevice>,
-        swapchain: &tvk::Swapchain,
         render_pass: &tvk::RenderPass,
         descriptor_layout: avk::DescriptorSetLayout,
         shaders: &[tvk::PipelineShaderCreateInfo],
@@ -46,12 +45,10 @@ impl Pipeline {
         let dynamic_state = avk::PipelineDynamicStateCreateInfo::default()
             .dynamic_states(dynamic_states);
 
-        let attribute_descriptions = tvk::Vertex::get_attribute_descriptions();
-        let binding_descriptions = tvk::Vertex::get_binding_descriptions();
-
+        let (vertex_binding_descriptions, vertex_attribute_descriptions) = tvk::Pipeline::pipeline_vertex_input_state();
         let vertex_input_state = avk::PipelineVertexInputStateCreateInfo::default()
-            .vertex_attribute_descriptions(&attribute_descriptions)
-            .vertex_binding_descriptions(&binding_descriptions);
+            .vertex_binding_descriptions(&vertex_binding_descriptions)
+            .vertex_attribute_descriptions(&vertex_attribute_descriptions);
         let input_assembly_state = avk::PipelineInputAssemblyStateCreateInfo::default()
             .topology(avk::PrimitiveTopology::TRIANGLE_LIST)
             .primitive_restart_enable(false);
@@ -113,17 +110,29 @@ impl Pipeline {
             logical_device,
         })
     }
+
+    fn pipeline_vertex_input_state() -> (Vec<avk::VertexInputBindingDescription>, Vec<avk::VertexInputAttributeDescription>) {
+        let mut bindings = Vec::new();
+        let mut attributes = Vec::new();
+
+        bindings.extend(tvk::Vertex::get_binding_descriptions());
+        bindings.extend(tvk::InstanceData::get_binding_descriptions());
+
+        attributes.extend(tvk::Vertex::get_attribute_descriptions());
+        attributes.extend(tvk::InstanceData::get_attribute_descriptions());
+
+        (bindings, attributes)
+    }
 }
 
 impl tvk::Context {
     pub fn create_pipeline(
         &self,
-        swapchain: &tvk::Swapchain,
         render_pass: &tvk::RenderPass,
         descriptor_set: avk::DescriptorSetLayout,
         shaders: &[tvk::PipelineShaderCreateInfo]
     ) -> AnyResult<tvk::Pipeline> {
-        tvk::Pipeline::new(self.logical_device.clone(), swapchain, render_pass, descriptor_set, shaders)
+        tvk::Pipeline::new(self.logical_device.clone(), render_pass, descriptor_set, shaders)
     }
 }
 

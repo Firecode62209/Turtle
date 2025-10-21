@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 ash.workspace = true
 ash-window.workspace = true
+bytemuck = "1.24.0"
 glam = "0.30.8"
 gpu-allocator = "0.28.0"
 log.workspace = true

@@ -1,5 +1,5 @@
 use ash::vk as avk;
-use glam::{vec3, Mat4};
+use glam::{vec3, Mat4, Vec4};
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -60,13 +60,6 @@ pub const CUBE_INDICES: [u32; 36] = [
     20,21,22, 22,23,20,
 ];
 
-#[derive(Clone, Copy)]
-pub struct UniformBufferObject {
-    pub model: Mat4,
-    pub view: Mat4,
-    pub proj: Mat4
-}
-
 impl VertexDescription for Vertex {
     fn get_binding_descriptions() -> Vec<avk::VertexInputBindingDescription> {
         vec![
@@ -85,6 +78,32 @@ impl VertexDescription for Vertex {
                 .format(avk::Format::R32G32B32_SFLOAT)
                 .offset(0),
         ]
+    }
+}
+
+#[repr(C, align(16))]
+#[derive(Clone, Copy, Debug)]
+pub struct InstanceData {
+    pub model: Mat4,
+}
+
+impl VertexDescription for InstanceData {
+    fn get_attribute_descriptions() -> Vec<avk::VertexInputAttributeDescription> {
+        (0..4).map(|i| avk::VertexInputAttributeDescription {
+            binding: 1,
+            location: 1 + i, // assuming 0-2 used by vertex position/normal/uv
+            format: avk::Format::R32G32B32A32_SFLOAT,
+            offset: size_of::<Vec4>() as u32 * i,
+        })
+        .collect::<Vec<_>>()
+    }
+
+    fn get_binding_descriptions() -> Vec<avk::VertexInputBindingDescription> {
+        vec![avk::VertexInputBindingDescription {
+            binding: 1,
+            stride: std::mem::size_of::<InstanceData>() as u32,
+            input_rate: avk::VertexInputRate::INSTANCE,
+        }]
     }
 }
 

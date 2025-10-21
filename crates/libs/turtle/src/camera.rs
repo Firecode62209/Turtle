@@ -1,5 +1,13 @@
 use glam::{Mat4, Vec3};
 use crate::*;
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Matrix {
+    pub view: Mat4,
+    pub proj: Mat4,
+}
+
 pub struct Camera {
     pub position: Vec3,
     pub projection: Mat4,

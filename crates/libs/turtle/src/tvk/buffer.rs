@@ -44,6 +44,19 @@ impl Buffer {
         })
     }
     pub fn copy_memory<T: Copy>(&mut self, data: &[T]) -> AnyResult<()> {
+        let required_size = size_of_val(data) as u64;
+
+        if required_size > self.size {
+            let new_size = ((required_size + 255) / 256) * 256;
+            let mut new_buffer = Buffer::create(self.allocator.clone(), self.logical_device.clone(),
+                new_size,
+                avk::BufferUsageFlags::VERTEX_BUFFER,
+                MemoryLocation::CpuToGpu
+            )?;
+
+            std::mem::swap(self, &mut new_buffer);
+        }
+
         unsafe {
             let data_ptr = self.allocation.as_ref().unwrap().mapped_ptr().unwrap().as_ptr();
             let mut align = ash::util::Align::new(data_ptr, align_of::<T>() as _, size_of_val(data) as _);

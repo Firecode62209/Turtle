@@ -108,14 +108,14 @@ impl CommandBuffer {
         }
     }
 
-    pub fn bind_vertex_buffer(&self, buffer: &tvk::Buffer) {
-        let offsets = &[0];
+    pub fn bind_vertex_buffers(&self, buffers: &[avk::Buffer]) {
+        let offsets = vec![0; buffers.len()];
         unsafe {
             self.logical_device.inner.cmd_bind_vertex_buffers(
                 self.inner,
                 0,
-                &[buffer.inner],
-                offsets
+                buffers,
+                &offsets
             );
         }
     }
