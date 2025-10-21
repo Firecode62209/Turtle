@@ -25,8 +25,7 @@ impl From<Mesh<tvk::Vertex>> for InstanceGroup  {
 }
 
 impl InstanceGroup {
-    pub fn add_instance(&mut self, model: Mat4, visible: bool) {
-        let data = tvk::InstanceData { model };
+    pub fn add_instance(&mut self, data: tvk::InstanceData, visible: bool) {
         self.all_instances.push(data);
         if visible {
             self.visible_indices.push(self.all_instances.len() - 1);

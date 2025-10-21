@@ -40,7 +40,7 @@ impl Camera {
         self.pitch = self.pitch.clamp(-89.0, 89.0);
 
         let yaw_rad = self.yaw.to_radians();
-        let speed = 0.1;
+        let speed = 0.25;
         let keyboard = input_manager.keyboard();
         let forward = Vec3::new(yaw_rad.sin(), 0.0, -yaw_rad.cos()).normalize();
         let right = forward.cross(Vec3::Y).normalize();

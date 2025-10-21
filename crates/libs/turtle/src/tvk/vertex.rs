@@ -1,5 +1,5 @@
 use ash::vk as avk;
-use glam::{vec3, Mat4, Vec4};
+use glam::{vec3, Mat4, Vec3, Vec4};
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -85,17 +85,25 @@ impl VertexDescription for Vertex {
 #[derive(Clone, Copy, Debug)]
 pub struct InstanceData {
     pub model: Mat4,
+    pub color: Vec3,
 }
 
 impl VertexDescription for InstanceData {
     fn get_attribute_descriptions() -> Vec<avk::VertexInputAttributeDescription> {
-        (0..4).map(|i| avk::VertexInputAttributeDescription {
+        let mut vec = (0..4).map(|i| avk::VertexInputAttributeDescription {
             binding: 1,
-            location: 1 + i, // assuming 0-2 used by vertex position/normal/uv
+            location: 1 + i,
             format: avk::Format::R32G32B32A32_SFLOAT,
             offset: size_of::<Vec4>() as u32 * i,
         })
-        .collect::<Vec<_>>()
+        .collect::<Vec<_>>();
+        vec.push(avk::VertexInputAttributeDescription {
+            binding: 1,
+            location: 5, 
+            format: avk::Format::R32G32B32A32_SFLOAT,
+            offset: std::mem::size_of::<Mat4>() as u32,
+        });
+        vec
     }
 
     fn get_binding_descriptions() -> Vec<avk::VertexInputBindingDescription> {

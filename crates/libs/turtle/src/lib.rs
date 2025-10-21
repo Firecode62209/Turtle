@@ -26,14 +26,16 @@ pub struct AppData {
 
 impl AppData {
     pub fn new(event_loop: &winit::event_loop::ActiveEventLoop) -> AnyResult<Self> {
-        let window = event_loop.create_window(Window::default_attributes())?;
+        let window_attributes = Window::default_attributes()
+            .with_maximized(true);
+        let window = event_loop.create_window(window_attributes)?;
         let renderer = Renderer::new(&window)?;
         let mesh = renderer.context.create_mesh_from_cube()?;
         let mut instance_group = InstanceGroup::from(mesh);
         instance_group.create_instance_buffer(&renderer.context)?;
-        let count = 500;        // how many cubes you want
-        let radius = 10.0;      // radius of sphere
-        let spacing = 1.2;      // optional multiplier for cube separation
+        let count = 1000000;        // how many cubes you want
+        let radius = 1000.0;      // radius of sphere
+        let spacing = 1.0;      // optional multiplier for cube separation
 
         for i in 0..count {
             // Compute a normalized position on the sphere
@@ -62,8 +64,13 @@ impl AppData {
 
             let transform = Mat4::from_translation(position) * rotation;
 
+            let instance_data = tvk::InstanceData {
+                model: transform,
+                color: vec3(x, y, z)
+            };
+
             instance_group.add_instance(
-                transform,
+                instance_data,
                 true,
             );
         }
